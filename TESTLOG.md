@@ -371,3 +371,40 @@ packs / repair / payoff has strictly better tools than this harness.
 - Pause/wheel/taxi/robbery/coins were iter-2's and not re-played here, except
   the four save/load regressions above. The chain was run once end-to-end
   on the fixed code (plus isolated J5/J3 debug runs during harness work).
+
+---
+
+# ITERATION 5 (round-14 iter-5 builder, 2026-11-19) — FINAL: settings menu + visibility auto-pause, no code changes
+
+## Method
+Fresh Playwright harness (headless Chromium 1255, SwiftShader, 1280x720,
+seed 1, localhost only): real clicks/keys/mouse; `document.hidden`
+overridden via `Document.prototype` + `visibilitychange` dispatched;
+WebAudio master gain observed via a `createGain` hook (master = first gain).
+0 console errors, 0 failed requests in every run.
+
+## Settings — PASS, both controls live (no quality control exists)
+- Pause menu offers exactly 2 settings: Volume 0–100 (default 60) and
+  Mouse sensitivity 30–200 (default 100). No graphics/quality control
+  anywhere (DOM + `game/src` grep) despite the brief/DESIGN.md naming one
+  — reported, not built (new feature, out of scope for this round).
+- Volume LIVE: master gain 0.6 at start → slider 0 → 0.0, 100 → 1.0,
+  30 → 0.3 (exact, on the WebAudio master gain node).
+- Sensitivity LIVE: same +100 px mouse move (pointer-locked) → camYaw
+  Δ −0.32 rad at 100% (−100×0.0032×1.0) and Δ −0.64 rad at 200% (2×).
+- Finding (not fixed): settings are session-only — after a full reload
+  both sliders reset to 60/100. They work live; nothing promises
+  persistence. Coordinator call whether to persist them.
+
+## Visibility-change auto-pause — PASS
+- Hidden (override + dispatched event) while playing → pause screen
+  shows, sim time frozen exactly (29.516666… unchanged over 1.5 s wall).
+- Back to visible → stays paused (no auto-resume); manual Resume works,
+  sim advances again, player position unchanged, 0 errors. Second
+  hide-while-paused cycle repeats cleanly.
+- Note: Esc does not exit pointer lock in headless Chrome (harness
+  artifact only — the game itself pauses/resumes correctly).
+
+## Changes: NONE to game code. Full chain NOT re-run (per brief: iter-4
+already ran 1→9 on this exact commit, gameWon=true). No screenshots
+changed, so no re-render. No `Math.random`/`Date.now` touched.
