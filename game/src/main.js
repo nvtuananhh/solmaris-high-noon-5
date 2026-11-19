@@ -108,6 +108,7 @@ $('garage-close').addEventListener('click', closePanel);
 $('shop-close').addEventListener('click', closePanel);
 $('set-vol').addEventListener('input', (e) => audio.setVolume(Number(e.target.value) / 100));
 $('set-sens').addEventListener('input', (e) => { input.sens = Number(e.target.value) / 100; });
+$('set-quality').addEventListener('change', (e) => renderer.setQuality(e.target.value));
 
 function nearestCarDist(x, z, maxD) {
   let bd = maxD * maxD;

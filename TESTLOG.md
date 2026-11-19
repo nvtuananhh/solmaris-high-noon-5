@@ -408,3 +408,42 @@ WebAudio master gain observed via a `createGain` hook (master = first gain).
 ## Changes: NONE to game code. Full chain NOT re-run (per brief: iter-4
 already ran 1→9 on this exact commit, gameWon=true). No screenshots
 changed, so no re-render. No `Math.random`/`Date.now` touched.
+
+---
+
+# ITERATION 6 (round-14 iter-6 builder, 2026-11-19) — FINAL: graphics-quality setting, then freeze
+
+## Change (27 added lines: render.js +26, main.js +1, index.html +1)
+- Pause menu (Esc) gains a third setting next to Volume / Sensitivity:
+  Graphics quality — Low / Medium / High (`<select id="set-quality">`,
+  Medium selected by default). Session-only, like the other two; no persistence.
+- Lever (real, in `render.js`): pixel ratio + fog draw distance.
+  Low = 0.5x + fog far 200; Medium = min(dpr, 2) + fog far 320 (exactly the
+  old values); High = 2x + fog far 420. `setQuality()` applies both and
+  re-runs `resize()`; exposed as `renderer.setQuality/getQuality`.
+- No other changes. No `Math.random`/`Date.now` in the changed files.
+
+## Verification (Playwright, headless Chromium 1255, SwiftShader, 1280x720, seed 1)
+- Per level, live via the real pause-menu select (sim frozen while paused,
+  camera settled 10 s first): canvas backing store Low 640x360,
+  Medium 1280x720, High 2560x1440. Frozen-frame pixel diffs vs Medium:
+  Low mean 0.13/255 (1,198 px diff>10), High 0.09 (1,114 px) — small but
+  above the same-level noise floor (Medium-vs-Medium 0.03, 261 px).
+  Switching mid-game works; sim time advances again after Resume; 0 errors.
+- Default = byte-identical to e5b22ac: all 4 shots rendered twice on the
+  new code AND twice from a pristine e5b22ac tree — all 8 hashes match
+  (cover ef48a746…, onfoot e642b3ca…, driving ede74da0…, mission 10a47c3e…).
+- Job 1 smoke on default: talk done, sedan entered, drove to the marina —
+  jobIndex 1, cash $250 → $700, respect 11, 0 console errors, 0 failed reqs.
+- 0 console errors, 0 failed/external requests in every run.
+
+## Honest caveats
+- My JPEG q80 captures do NOT hash-match the repo screenshot files
+  (e.g. cover ef48a746… vs repo 7912ad9c…), but neither does the pristine
+  e5b22ac tree rendered the same way — the repo files were encoded by a
+  different JPEG encoder. Pixel comparison: scenes match (mean abs diff
+  0.27–0.36/255, 76–82% exact pixels, diffs scattered single-pixel
+  re-encoding noise, ≤60 px diff>30 per frame). Default rendering is
+  unchanged; the hash gap is the encoder, not the code.
+- Full chain 1→9 NOT re-run (iter-4 ran it on this exact code, gameWon=true);
+  only job 1 was re-played after the render change.

@@ -5,6 +5,14 @@ import { CAR_MODELS, WEAPONS, LANDMARKS, RADIO_STATIONS } from './config.js';
 
 const TAU = Math.PI * 2;
 
+// Graphics quality: pixel ratio + fog draw distance. Medium is the exact
+// current rendering (pixel ratio min(dpr, 2), fog far 320) — the default.
+const QUALITY = {
+  low: { pixelRatio: 0.5, fogFar: 200 },
+  medium: { pixelRatio: null, fogFar: 320 },
+  high: { pixelRatio: 2, fogFar: 420 },
+};
+
 function makeCarMesh(color) {
   const g = new THREE.Group();
   const bodyMat = new THREE.MeshLambertMaterial({ color });
@@ -161,6 +169,22 @@ export function createRenderer(canvas, world, audio) {
   }
   window.addEventListener('resize', resize);
   resize();
+
+  // ---- graphics quality (session-only, like volume / sensitivity) ----
+  let quality = 'medium';
+  function applyQuality() {
+    const q = QUALITY[quality];
+    renderer.setPixelRatio(q.pixelRatio ?? Math.min(window.devicePixelRatio || 1, 2));
+    scene.fog.far = q.fogFar;
+    resize();
+  }
+  function setQuality(level) {
+    if (!QUALITY[level]) return false;
+    quality = level;
+    applyQuality();
+    return true;
+  }
+  function getQuality() { return quality; }
 
   // ---- HUD refs ----
   const $ = (id) => document.getElementById(id);
@@ -456,5 +480,5 @@ export function createRenderer(canvas, world, audio) {
     });
   }
 
-  return { draw, setWheel, resize, colliders, scene, camera, renderer, snapCamera() { snap = true; } };
+  return { draw, setWheel, resize, setQuality, getQuality, colliders, scene, camera, renderer, snapCamera() { snap = true; } };
 }
