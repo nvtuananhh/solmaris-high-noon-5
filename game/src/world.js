@@ -830,7 +830,7 @@ export function createWorld(seed, colliders) {
         x: state.player.x, z: state.player.z,
         health: state.player.health,
         weapons: state.weapons,
-        cars: state.cars.filter((c) => c.owned).map((c) => ({ id: c.id, model: c.model, color: c.color, upgrades: c.upgrades, x: c.x, z: c.z, angle: c.angle })),
+        cars: state.cars.filter((c) => c.owned).map((c) => ({ id: c.id, model: c.model, color: c.color, upgrades: c.upgrades, damage: c.damage, x: c.x, z: c.z, angle: c.angle })),
         taken: state.pickups.map((pk, i) => (pk.taken ? i : -1)).filter((i) => i >= 0),
       };
       window.localStorage.setItem(SAVE_KEY, JSON.stringify(data));
@@ -864,6 +864,7 @@ export function createWorld(seed, colliders) {
           if (car) {
             car.model = saved.model; car.color = saved.color;
             car.upgrades = saved.upgrades || car.upgrades;
+            car.damage = saved.damage ?? 0;
             car.x = saved.x; car.z = saved.z; car.angle = saved.angle;
           }
         }

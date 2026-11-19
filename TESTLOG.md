@@ -331,3 +331,43 @@ packs / repair / payoff has strictly better tools than this harness.
   iter-2's); pause/wheel/taxi/robbery/coins were iter-2's and not
   re-played here.
 - The damage-persistence observation above was not fixed (see above).
+---
+
+# ITERATION 4 (round-14 iter-4 builder, 2026-11-19) — fix car-damage save/load, re-verify full chain
+
+## Fix (2 lines in game/src/world.js, the only game change)
+- `save()` now stores `damage` per owned car; `load()` restores it with
+  `saved.damage ?? 0` (old saves without the field still load at 0).
+- Verified live (Playwright, seed 1): sedan damage 63 → reset (0) → load 63;
+  92 → 0 → 92. Legacy save with the field deleted loads at 0. No free repair.
+
+## Iter-2 save/load repairs — all still hold (quick regression pass)
+- Coins: collect 1 ($300), save/reset/load → coins 1, revisiting pays nothing.
+- Upgrades: engine tune bought → true after reset+load.
+- Melee ammo: Infinity before save, Infinity after load (JSON null fixed).
+- Mid-combat respawn (job 6): saved at 2/4 kills → 4 alive, kills 0 after load;
+  the fight then completes (120 steps, HP 82.5). 0 console errors, 0 failed reqs.
+
+## Full chain 1→9 — PASS, gameWon=true (one continuous world, seed 1)
+- Per job (cash/respect after): 1 $650/10, 2 $1,500/22, 3 $2,550/39,
+  4 $3,650/55, 5 $5,150/75, 6 $7,150/100 (HP 87.9), 7 $9,750/130,
+  8 $12,950/165 (HP 46.2), 9 **$16,338/216**. Final: gameWon=true, HP 100,
+  wanted 0, at the lighthouse (-150.8,-187.9), 474 s sim.
+- Cash is short of the no-incident $18,960: two BUSTEDs in the job-9 fight
+  (×0.8 twice, +1 coin) — legitimate consequences, not soft-locks.
+- 0 console errors, 0 failed requests. No `Math.random`/`Date.now` in
+  gameplay paths (only pre-existing comments mention them).
+- Harness notes (harness only, no game change): lookahead steering +
+  turn-speed cap + speed-based stuck trigger + stand-and-fire fights;
+  the post-job-5 car swap was built but unneeded (coupe damage 29.9 ≤ 30).
+
+## Screenshots (double-rendered, seed=1 — fix changes no staging, repo files untouched)
+- All 4 byte-identical across two renders, 0 console errors, 0 failed requests:
+  1-cover.jpg 73,077 B sha256 202f9362…; 2-onfoot.jpg 61,522 B 1deafb8a…;
+  3-driving.jpg 60,676 B 8f30ce6b…; 4-mission.jpg 47,058 B 6198dd16…
+
+## Not verified (honest gaps)
+- Races are still not implemented (iter-2 finding, unchanged).
+- Pause/wheel/taxi/robbery/coins were iter-2's and not re-played here, except
+  the four save/load regressions above. The chain was run once end-to-end
+  on the fixed code (plus isolated J5/J3 debug runs during harness work).
