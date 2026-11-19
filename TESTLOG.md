@@ -226,3 +226,108 @@ tree on iter-2 at bd46a80), no work lost.
   in real play at 60 fps the timings are as designed.
 - No `Math.random`/`Date.now` added (only pre-existing comments mention
   them); `performance.now` only in the main.js frame accumulator.
+
+---
+
+# ITERATION 3 (round-14 iter-3 builder, 2026-11-19) — regression: full chain 1→9 + save/load jobs 8/9 on iter-2 code
+
+## Playtest method
+Scripted Playwright harness (headless Chromium 1255, SwiftShader, 1280x720,
+written fresh for this round from the TESTLOG method + this round's world.js):
+real `world.step` driven with scripted inputs — road-grid BFS autopilot for
+drives (routes follow road intersections, never cut across blocks), walk-to
+for on-foot legs, aim-and-fire for combat (pistol, heading set to the exact
+enemy bearing each step). Full chain 1→9 played in ONE continuous world,
+seed 1, no reset between jobs except the two planned save/load resets below.
+Harness equivalents of health packs: heal to 100 HP before each combat and
+before driving into the job-8/9 guard range (the game has health packs and
+shops for this); the garage repair ($250) was used once, at the garage, when
+offered by the game (see j5 note). 0 console errors, 0 failed requests in
+every run. No game code was changed (see below).
+
+## Full chain result — PASS, gameWon=true
+Per-job (cash/respect after each job; start $250 / 0):
+
+| Job | Result | Cash after | Respect after | Notes |
+|-----|--------|-----------|---------------|-------|
+| 1 First Light | ok | $650 | 10 | Ammo pack grabbed first (+24 pistol, 48 total) |
+| 2 Hotwire | ok | $1,500 | 22 | Coupe stolen, +$150 delivery bonus |
+| 3 The Drop | ok | $2,500 | 38 | 2 ember coins en route |
+| 4 Clean Plates | ok | $3,600 | 54 | Survive 20 s at the garage |
+| 5 Flamingo Run | ok | $5,100 | 74 | 3-star chase, both legs; no repair needed this run (damage ≤ 20 at the garage, so the $250 repair was NOT taken) |
+| 6 The Witness | ok | $7,100 | 99 | Fight ends HP 83, ammo 48 → 40 (8 shots, 4 kills); health pack not needed |
+| 7 Air Support | ok | $9,700 | 129 | 4-star chase + heli; tunnel escape, wanted 4 → 0; car damage 53 on arrival, no wreck |
+| 8 Double Cross | ok | $10,960 | 164 | Combat 5 kills (see save/load below); escape drive to safehouse. Cash is $1,940 short of the no-incident $12,900: one BUSTED during the escape leg (cash ×0.8 before the +$3,200 pay) |
+| 9 The Last Tide | ok | **$15,101** | **214** | Vault combat 4 kills (see save/load below); boat escape to the lighthouse. Cash is $3,859 short of the no-incident $18,960: two WASTED on the casino approach (vault guards shot the driver, cash $10,960 → $8,877, ×0.9 twice) + one BUSTED on the boat leg (×0.8 before the +$8,000 pay) |
+
+Final: **gameWon=true, cash $15,101, respect 214, HP 100, wanted 0**,
+41,512 sim steps, 0 console errors, 0 failed requests. The busts/wasteds
+are legitimate game consequences of a rough autopilot (driving into guard
+fire, police rams while escaping), not soft-locks: the same class of
+incident iter-1 reported (post-completion busts). A human using health
+packs / repair / payoff has strictly better tools than this harness.
+
+## Mid-combat save/load — PASS for jobs 8 AND 9 (iter-2 verified job 6 only)
+- **Job 8** (docks ambush, 5 rivals): saved at 2/5 kills, `world.reset()`,
+  `load()` → okSave=true, okLoad=true, job/step/cash/position restored,
+  kills reset to 0, **all 5 enemies respawned alive**; the fight was then
+  completed from 0 kills (ammo 36 → 26, 10 shots, 5 kills).
+- **Job 9** (casino vault, 4 guards): same procedure at 2/4 kills →
+  okSave/okLoad true, **all 4 guards respawned**, fight completed
+  (ammo 22 → 14, 8 shots, 4 kills), boat step reached, gameWon=true.
+- No soft-lock in either case. The iter-2 load fix holds on this code.
+
+## Bugs found: NONE in the game. Two harness bugs found and fixed (harness only)
+- **Route cut across blocks:** the first autopilot version skipped the
+  nearest road intersection, so the car drove diagonally across a block
+  straight through the block-centre building at (60,-20) (casino front),
+  pinned there while police rams ground it 25 → 90 damage (traced live:
+  car at (62,-21), angle frozen because it already faced the waypoint,
+  damage +~2/s from rams at speed 0). Fix was harness-side only: routes
+  now start at the nearest intersection and ease off near waypoints.
+  The game behaved correctly throughout (collision, ram damage, wreck,
+  bust recovery all worked as designed). No game change.
+- **180° turns drove into walls:** replaced by a reverse-turn (3-point)
+  in the harness. Same conclusion: harness, not game.
+- The j6→sedan walk at wanted 4 got the harness BUSTED once in an
+  intermediate run; dropped that leg — the chain now keeps the job-2
+  coupe for jobs 7–9 and takes a fresh parked car after each save/load
+  reset (post-load wanted is 0, so the walk is safe).
+
+## Observation (NOT fixed — coordinator call, no chain impact)
+- **Save/load does not persist car damage.** `save()` stores owned cars
+  without `damage`, so after a reset+load the car comes back at damage 0
+  (observed: sedan 92 → 0 across the job-8 load, 42 → 0 across job-9).
+  It only ever helps the player (a free repair) and never blocks progress.
+  A faithful fix is ~4 lines (store/restore `damage` in save/load) but it
+  touches the save format iter-2 just repaired, so it is left for the
+  coordinator to decide. No fix was made: the chain passes with zero
+  code changes, which is the correct outcome for this round.
+
+## Screenshots (double-rendered, seed=1 — no game change, no restaging)
+- All 4 shots rendered twice: byte-identical both times, 0 console
+  errors, 0 failed requests. (My harness screenshots at JPEG quality 90,
+  so the bytes differ from the repo files, which were captured at a lower
+  quality; pixel comparison confirms the scenes match — mean abs diff
+  0.9–1.4/255, ~50% exact pixels, i.e. re-encoding noise only.)
+  - 1-cover.jpg: 99,906 bytes, sha256 950cbc6b2337dcb1…
+  - 2-onfoot.jpg: 83,659 bytes, sha256 5d994d0d307083a5…
+  - 3-driving.jpg: 83,686 bytes, sha256 306ca92568553efa…
+  - 4-mission.jpg: 64,153 bytes, sha256 ecc558cc42053b7f…
+- Repo screenshots NOT replaced (no staging changed).
+
+## Determinism / hygiene
+- No `Math.random` / `Date.now` in any gameplay path (grep: only comments
+  mention them); `performance.now` only in the main.js frame accumulator.
+- Double-render byte-identical for all 4 shots (above).
+
+## Not verified (honest gaps)
+- Races are still not implemented (iter-2 finding, unchanged).
+- The full chain reached gameWon=true twice on this code (an earlier run
+  at $14,900 via messier harness paths, and the reported final-harness run
+  at $15,101); it was not run a third time after the final harness fix —
+  the reported run IS the final-harness run.
+- Save/load was verified mid-combat for jobs 8/9 only (job 6 was
+  iter-2's); pause/wheel/taxi/robbery/coins were iter-2's and not
+  re-played here.
+- The damage-persistence observation above was not fixed (see above).
