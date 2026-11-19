@@ -132,7 +132,7 @@ export function createRenderer(canvas, world, audio) {
   const roadblockMeshes = [];
   const heli = new THREE.Group();
   const heliBody = new THREE.Mesh(new THREE.BoxGeometry(5, 2, 2.6),
-    new THREE.MeshLambertMaterial({ color: 0x1a2a4a }));
+    new THREE.MeshLambertMaterial({ color: 0xdfe8f2 }));
   heli.add(heliBody);
   const rotor = new THREE.Mesh(new THREE.BoxGeometry(9, 0.15, 0.5),
     new THREE.MeshLambertMaterial({ color: 0x222222 }));

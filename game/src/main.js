@@ -158,7 +158,9 @@ function runGame() {
       const p = world.state.player;
       const nearCar = nearestCarDist(p.x, p.z, 5.5);
       if (!nearCar && world.state.nearGarage) { openPanel('garage'); stepActions = actions & ~ACTION_INTERACT; }
-      else if (!nearCar && world.state.nearShop) { openPanel('shop'); stepActions = actions & ~ACTION_INTERACT; }
+      // Armed at the Corner Store, E holds the store up (robbery) — the sim
+      // handles it. With fists out, E browses the shop instead.
+      else if (!nearCar && world.state.nearShop && world.state.weapons.current === 0) { openPanel('shop'); stepActions = actions & ~ACTION_INTERACT; }
       else if (!nearCar && world.state.nearSafe) {
         world.setMessage(world.save() ? 'Game saved at the safehouse.' : 'Save failed.', 4);
         stepActions = actions & ~ACTION_INTERACT;

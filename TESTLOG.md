@@ -107,3 +107,122 @@ cash $250 → $20,850, respect 213.** 0 console errors, 0 failed requests.
 - Determinism: all 4 byte-identical across two renders; 0 console errors,
   0 failed requests. No `Math.random`/`Date.now` in gameplay paths
   (`performance.now` only drives the fixed-step accumulator in main.js).
+
+---
+
+# ITERATION 2 (round-14 iter-2 builder, 2026-11-19) — re-verify unplayed systems, tune job 6, fix job 3 fiction, heli polish
+
+## Playtest method
+Scripted Playwright harness (headless Chromium 1255, SwiftShader, 1280x720):
+direct `world.step` driving for logic tests (title screen shown, so the rAF
+loop does not double-step), real keyboard + real loop for UI tests
+(pause, wheel, save/load buttons, robbery), and a live-loop fight for job 6
+(aim refreshed every ~700 ms wall time while the sim runs live — this is the
+human-paced measurement; direct-step aim is free and finishes the fight at
+87 HP, which understates the difficulty). 0 console errors, 0 failed requests
+in every run. A VM restart mid-session (#86, boot 12:29 UTC) wiped /tmp and
+killed one taxi run — harness rebuilt from scratch, repo untouched (clean
+tree on iter-2 at bd46a80), no work lost.
+
+## Systems re-verified (iteration 1 did NOT re-play these)
+- **Save/load: PASS after fixes (4 bugs found, see below).** Pause-menu
+  Save/Load buttons round-trip cash/job/position; Continue reloads the save.
+  Fixed: collected coins respawned after reset+load and paid twice
+  (coins 1 -> 2, cash +$50); owned-car upgrades were lost on load
+  (engine tune bought, then false after load); melee ammo Infinity became
+  null through JSON. Save now stores taken-pickup indices + owned cars
+  (id/model/color/upgrades/position); load restores both + Infinity.
+  Verified: coin stays taken, coins 1 after revisit, engine true after load.
+- **Pause: PASS.** Esc opens the pause menu and freezes sim time
+  (8.08 -> 8.08 over 1.2 s); Esc resumes (time advances). Real keys.
+- **Weapon wheel: PASS.** Hold Q shows the wheel (display flex); 3 selects
+  pistol; 2 with unowned bat does not switch; releasing Q hides it.
+- **Taxi: PASS.** Hail works (driving slowly past a taxi ped starts a fare);
+  full drive to the marker pays +$120, +2 respect (cash 250 -> 370).
+  The drive needed a real road-following autopilot: landmark buildings sit
+  astride roads (casino blocks x=80 at z=-52..-28, confirmed by a collider
+  probe), so routes must detour via neighbouring road lines, crawl sharp
+  turns, and sidestep parked cars (one sits at (0,44) on the road).
+  No game change needed — destinations are road intersections, human-drivable.
+- **Robbery: BROKEN, fixed, PASS.** Armed E at the Corner Store opened the
+  SHOP panel instead — main.js intercepted E before the sim ever saw it, so
+  the robbery could never start through the UI (sim path worked when the
+  intercept was bypassed). Fix: E at the store with a weapon drawn now holds
+  the store up; with fists out, E still opens the shop (title screen hints
+  the rule). Verified live: robbery counts down, cash 250 -> 550 (+$300),
+  wanted 0 -> 2; fists+E still opens the shop panel.
+- **Coins: PASS.** All 25 ember coins reachable (teleport-to-each test,
+  25/25 collected); both health packs + the ammo pack reachable.
+- **Races: NOT IMPLEMENTED — found, not built.** `state.race` is dead state;
+  no race logic, markers, or UI exist anywhere in the code, and the title
+  screen does not mention races. Building 3 checkpoint circuits is a new
+  system, out of scope for this polish round (brief: no new systems).
+  Reported honestly instead of built.
+
+## Bugs found live and fixed (all verified after the fix)
+- Robbery unreachable via UI (above) — main.js intercept now checks the
+  drawn weapon; 1-line hint added to the title controls.
+- Save/load lost owned-car upgrades + double-paid collected coins + nulled
+  melee ammo (above) — save/load now persist taken pickups and owned cars.
+- Save/load mid-combat soft-locked the job: saving during a combat step
+  (job 6, 2/4 kills) and loading put the player back with 0 enemies alive
+  and kills reset — the step could never complete. Fix: load() respawns the
+  step's enemies (step.kills at the step's marker) when the restored step
+  is combat with no live enemies. Verified live: 4 alive after load, and
+  the step completes again (kills restart from 0, the player re-fights
+  the full complement).
+- Health packs shared one render mesh: both health pickups had no `id`, so
+  `pickupMeshes` keyed them identically and only one was ever visible at a
+  time. Fixed with distinct ids (`h1`/`h2`); the job-6 pack uses `j6`.
+
+## Job 6 tuning
+- Baseline (live loop, ~700 ms aim): fight ends 59–61 HP from 100
+  (pre-change code), 61/61/77 on the new code with the pack unused — the
+  pack's mere presence changes nothing for players who ignore it.
+- Change (smallest safe): a health pack spawns with the job-6 enemies at
+  (52,0) — on the z=0 road, 12 m east of the rooftops, off the job-5
+  approach line (x=40). Verified: pack spawns untaken on the real job-6
+  start path; walking (40,120) -> (40,0) leaves it untaken (arrival HP 25
+  under fire — the approach itself is hot, so the pack earns its keep).
+- With the pack (live loop, grab at HP <= 85): collected 3/3 runs,
+  job completes at 95–100 HP when the fight ends cleanly (run 3: 95 HP).
+  Honest caveat: the ~3 s detour extends the fight, and the foot police
+  drawn by gunfire (wanted 2) can bust the player mid-fight — 2/3 pack
+  runs were interrupted that way. The job stays completable: a forced-bust
+  test shows kills (2/4) and the combat step survive the bust untouched,
+  and the job completes after returning (cash 3750, HP 94). A bust costs
+  20% cash + a trip back, same as the post-completion busts the baseline
+  runs already take (3/3 baseline runs ended cash 3000, i.e. one bust each).
+- Direct-step fights (perfect aim) still end 87 HP — the pack does not
+  trivialize the fight for fast players.
+
+## Job 3 fiction/mechanic mismatch — fixed by rewording (smallest safe)
+- The "escape by car" step completes on foot with wanted 0 (no car
+  required). Changed the text to match the mechanic instead of forcing a
+  car requirement: step now reads "Lose the heat — reach the garage with
+  no wanted stars", brief likewise. Job 3 re-verified to completion
+  (steps 1 -> 2, jobIndex 3, wanted 0). The respect gate was NOT touched.
+
+## Screenshot polish
+- Cover heli: body was dark navy (0x1a2a4a) and read as a black blob against
+  the dusk sky. Lightened to 0xdfe8f2 (one line in render.js) — it now reads
+  as a light helicopter with the searchlight cone. No restaging.
+- All 4 shots re-rendered twice, seed=1, byte-identical; 0 console errors,
+  0 failed requests:
+  - 1-cover.jpg: 73,100 bytes, sha256 7912ad9c7d8b3583… (changed: heli)
+  - 2-onfoot.jpg: 61,533 bytes, sha256 96f24a9e6ef1acbd… (staging unchanged)
+  - 3-driving.jpg: 60,672 bytes, sha256 e32cb57274d967ff… (staging unchanged)
+  - 4-mission.jpg: 47,057 bytes, sha256 e3be3c74072d4f67… (staging unchanged)
+
+## Not changed / known limitations (honest notes)
+- Races are not implemented (see above) — the only side activity the brief
+  promises that the game does not have.
+- Full chain jobs 1→9 was NOT re-played end-to-end in iter-2 (iter-1 did,
+  gameWon=true); only jobs 3 and 6 were re-played after their changes,
+  plus the systems above. Job 6's fight stays tight for slow players even
+  with the pack, by design (it is a combat job).
+- The headless sim runs slower than wall clock under SwiftShader (~0.65x),
+  so timed UI waits (e.g. the 10 s robbery) need longer wall-clock waits;
+  in real play at 60 fps the timings are as designed.
+- No `Math.random`/`Date.now` added (only pre-existing comments mention
+  them); `performance.now` only in the main.js frame accumulator.

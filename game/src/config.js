@@ -55,11 +55,11 @@ export const JOBS = [
   },
   {
     id: 3, title: 'The Drop', pay: 900, respect: 14,
-    brief: 'Pick up the package under the pier, then run the foot chase through Palm Court and escape by car.',
+    brief: 'Pick up the package under the pier, then run the foot chase through Palm Court and lose the heat before you reach the garage.',
     steps: [
       { kind: 'goTo', x: 0, z: -158, text: 'Pick up the package under the pier' },
       { kind: 'goTo', x: -40, z: 40, text: 'Foot chase — reach Palm Court on foot' },
-      { kind: 'escape', x: -120, z: -128, text: 'Escape by car — reach the garage with no wanted stars' },
+      { kind: 'escape', x: -120, z: -128, text: 'Lose the heat — reach the garage with no wanted stars' },
     ],
   },
   {

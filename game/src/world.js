@@ -128,8 +128,8 @@ export function createWorld(seed, colliders) {
       id: i, taken: false,
     });
   }
-  state.pickups.push({ kind: 'health', x: -78, z: 76, taken: false });
-  state.pickups.push({ kind: 'health', x: 78, z: -36, taken: false });
+  state.pickups.push({ kind: 'health', x: -78, z: 76, id: 'h1', taken: false });
+  state.pickups.push({ kind: 'health', x: 78, z: -36, id: 'h2', taken: false });
   state.pickups.push({ kind: 'ammo', x: -112, z: -124, taken: false });
 
   // ---- collision: circle vs building AABB ----
@@ -194,7 +194,13 @@ export function createWorld(seed, colliders) {
       setMessage('A fresh coupe is parked on Palm Court. Take it.', 5);
     }
     if (job.id === 5) { addWanted(3); setMessage('3 stars! The whole Mile is on you. Run!', 5); }
-    if (job.id === 6) spawnEnemies(4, 40, 0);
+    if (job.id === 6) {
+      spawnEnemies(4, 40, 0);
+      // Health pack on the road east of the rooftops: the fight is tight, and
+      // a mid-fight heal the player must move for beats a silent enemy nerf.
+      // Off the job-5 approach line (x=40), so it is not eaten on arrival.
+      state.pickups.push({ kind: 'health', x: 52, z: 0, id: 'j6', taken: false });
+    }
     if (job.id === 7) { addWanted(4); setMessage('Helicopter overhead! Lose it in the cannery tunnels.', 5); }
     if (job.id === 8) spawnEnemies(5, 140, -80);
     if (job.id === 9) { addWanted(2); spawnEnemies(4, 80, -24); setMessage('The vault is open. Grab the score!', 5); }
@@ -824,7 +830,8 @@ export function createWorld(seed, colliders) {
         x: state.player.x, z: state.player.z,
         health: state.player.health,
         weapons: state.weapons,
-        cars: state.cars.filter((c) => c.owned).map((c) => ({ model: c.model, color: c.color, upgrades: c.upgrades })),
+        cars: state.cars.filter((c) => c.owned).map((c) => ({ id: c.id, model: c.model, color: c.color, upgrades: c.upgrades, x: c.x, z: c.z, angle: c.angle })),
+        taken: state.pickups.map((pk, i) => (pk.taken ? i : -1)).filter((i) => i >= 0),
       };
       window.localStorage.setItem(SAVE_KEY, JSON.stringify(data));
       return true;
@@ -841,7 +848,32 @@ export function createWorld(seed, colliders) {
       state.coins = d.coins || 0;
       state.player.x = d.x; state.player.z = d.z;
       state.player.health = d.health ?? 100;
-      if (d.weapons) state.weapons = d.weapons;
+      if (d.weapons) {
+        state.weapons = d.weapons;
+        // JSON turns Infinity into null — melee slots never consume ammo.
+        if (Array.isArray(state.weapons.ammo)) { state.weapons.ammo[0] = Infinity; state.weapons.ammo[1] = Infinity; }
+      }
+      // Collected pickups stay collected — otherwise a reloaded coin pays twice.
+      if (Array.isArray(d.taken)) {
+        for (const i of d.taken) { if (state.pickups[i]) state.pickups[i].taken = true; }
+      }
+      // Owned cars keep their upgrades, paint and parking spot.
+      if (Array.isArray(d.cars)) {
+        for (const saved of d.cars) {
+          const car = state.cars.find((c) => c.id === saved.id);
+          if (car) {
+            car.model = saved.model; car.color = saved.color;
+            car.upgrades = saved.upgrades || car.upgrades;
+            car.x = saved.x; car.z = saved.z; car.angle = saved.angle;
+          }
+        }
+      }
+      // A save made mid-fight must not reload into an empty battlefield:
+      // the fresh world has no enemies, so a combat step could never finish.
+      const step = currentStep();
+      if (step && step.kind === 'combat' && !state.enemies.some((e) => e.alive)) {
+        spawnEnemies(step.kills, step.x, step.z);
+      }
       return true;
     } catch { return false; }
   }
