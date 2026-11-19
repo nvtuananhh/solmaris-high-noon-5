@@ -129,6 +129,7 @@ export function createRenderer(canvas, world, audio) {
   const enemyMeshes = new Map();
   const policeMeshes = [];
   const footPoliceMeshes = [];
+  const roadblockMeshes = [];
   const heli = new THREE.Group();
   const heliBody = new THREE.Mesh(new THREE.BoxGeometry(5, 2, 2.6),
     new THREE.MeshLambertMaterial({ color: 0x1a2a4a }));
@@ -315,8 +316,24 @@ export function createRenderer(canvas, world, audio) {
       rotor.rotation.y = time * 22;
     }
 
-    // roadblocks
-    // (police cars parked across the road — reuse police meshes? draw simple barriers)
+    // roadblocks: two police cars parked broadside across the avenue
+    while (roadblockMeshes.length < state.roadblocks.length * 2) {
+      const m = makeCarMesh(0x1a1a2e);
+      scene.add(m);
+      roadblockMeshes.push(m);
+    }
+    state.roadblocks.forEach((rb, i) => {
+      for (let k = 0; k < 2; k++) {
+        const m = roadblockMeshes[i * 2 + k];
+        if (!m) continue;
+        m.visible = true;
+        const off = k === 0 ? -4 : 4;
+        m.position.set(rb.x + Math.cos(rb.angle) * off, 0, rb.z - Math.sin(rb.angle) * off);
+        m.rotation.y = rb.angle;
+      }
+    });
+    for (let i = state.roadblocks.length * 2; i < roadblockMeshes.length; i += 1) roadblockMeshes[i].visible = false;
+
     // pedestrians
     state.peds.forEach((ped, i) => {
       let m = pedMeshes.get(i);

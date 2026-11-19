@@ -40,17 +40,25 @@ export function stageShot(name, world, renderer) {
     // Frame the chase: two police cars closing in ahead, helicopter offset into view.
     const pc = world.state;
     if (pc.policeCars.length >= 2) {
-      pc.policeCars[0].x = car.x + 24; pc.policeCars[0].z = car.z - 7; pc.policeCars[0].angle = car.angle; pc.policeCars[0].speed = 30;
-      pc.policeCars[1].x = car.x + 18; pc.policeCars[1].z = car.z + 8; pc.policeCars[1].angle = car.angle; pc.policeCars[1].speed = 30;
+      pc.policeCars[0].x = car.x + 16; pc.policeCars[0].z = car.z - 6; pc.policeCars[0].angle = car.angle; pc.policeCars[0].speed = 30;
+      pc.policeCars[1].x = car.x + 12; pc.policeCars[1].z = car.z + 7; pc.policeCars[1].angle = car.angle; pc.policeCars[1].speed = 30;
     }
-    pc.heli.x = car.x + 35; pc.heli.z = car.z - 15; pc.heli.alt = 18;
+    pc.heli.x = car.x + 28; pc.heli.z = car.z - 10; pc.heli.alt = 13;
   } else if (name === 'onfoot') {
-    // On foot on the Flamingo Mile by the casino, pedestrians and storefronts.
+    // On foot on the Flamingo Mile by the casino, looking east down the
+    // storefronts with pedestrians in frame.
     st.jobIndex = 0; st.stepIndex = 0;
     st.time = 120;
-    st.player.x = 80; st.player.z = -52;
-    st.player.heading = Math.PI / 2; st.player.camYaw = Math.PI / 2;
+    st.player.x = 40; st.player.z = -40;
+    st.player.heading = 0; st.player.camYaw = 0;
     st.cash = 250; st.respect = 0;
+    // pull four pedestrians into the frame (fixed spots on the road strip)
+    const pedSpots = [[46, -44], [50, -36], [56, -44], [62, -36]];
+    pedSpots.forEach(([px, pz], i) => {
+      const ped = st.peds[i];
+      if (!ped) return;
+      ped.x = px; ped.z = pz; ped.tx = px + 2; ped.tz = pz; ped.wait = 0;
+    });
     runSteps(world, 2, false, 0);
   } else if (name === 'driving') {
     // Driving west along the north avenue toward the lighthouse and the bay.
@@ -67,8 +75,15 @@ export function stageShot(name, world, renderer) {
     st.jobIndex = 7; st.stepIndex = 0;
     st.time = 170;
     st.wanted = 2;
-    world.spawnEnemies(5, 140, -80);
-    st.player.x = 128; st.player.z = -80;
+    world.spawnEnemies(5, 136, -80);
+    // tighten the ambush into a cluster just ahead of the player
+    const ambush = [[132, -84], [134, -77], [136, -82], [138, -76], [133, -73]];
+    st.enemies.forEach((e, i) => {
+      const spot = ambush[i % ambush.length];
+      e.x = spot[0]; e.z = spot[1];
+      e.heading = Math.atan2(-(-80 - e.z), 126 - e.x);
+    });
+    st.player.x = 126; st.player.z = -80;
     st.player.heading = 0; st.player.camYaw = 0;
     st.weapons.owned[3] = true; st.weapons.ammo[3] = 90; st.weapons.current = 3;
     st.cash = 4100; st.respect = 60;

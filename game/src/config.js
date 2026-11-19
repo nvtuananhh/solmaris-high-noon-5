@@ -90,8 +90,8 @@ export const JOBS = [
     id: 7, title: 'Air Support', pay: 2600, respect: 30, respectNeed: 30,
     brief: 'A 4-star chase with a police helicopter overhead. Lose it in the cannery tunnels.',
     steps: [
-      { kind: 'driveTo', x: -120, z: -80, text: 'Lose the helicopter — reach the cannery tunnels' },
-      { kind: 'escape', x: -120, z: -80, text: 'Stay hidden until the heat dies down' },
+      { kind: 'driveTo', x: -120, z: -64, text: 'Lose the helicopter — reach the cannery tunnels' },
+      { kind: 'escape', x: -120, z: -64, text: 'Stay hidden in the tunnels until the heat dies down' },
     ],
   },
   {

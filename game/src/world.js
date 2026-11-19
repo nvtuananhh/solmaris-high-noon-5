@@ -189,7 +189,7 @@ export function createWorld(seed, colliders) {
 
   function startJobEffects(job) {
     if (job.id === 2) {
-      const c = addCar(2, -40, 16, 0, { parked: true });
+      const c = addCar(2, -40, 8, 0, { parked: true });
       c.jobCar = true;
       setMessage('A fresh coupe is parked on Palm Court. Take it.', 5);
     }
@@ -197,7 +197,7 @@ export function createWorld(seed, colliders) {
     if (job.id === 6) spawnEnemies(4, 40, 0);
     if (job.id === 7) { addWanted(4); setMessage('Helicopter overhead! Lose it in the cannery tunnels.', 5); }
     if (job.id === 8) spawnEnemies(5, 140, -80);
-    if (job.id === 9) { addWanted(2); setMessage('The vault is open. Grab the score!', 5); }
+    if (job.id === 9) { addWanted(2); spawnEnemies(4, 80, -24); setMessage('The vault is open. Grab the score!', 5); }
   }
 
   function completeStep() {
@@ -277,7 +277,7 @@ export function createWorld(seed, colliders) {
       const d = Math.sqrt(dist2(p.x, p.z, e.x, e.z));
       if (d > w.range) continue;
       const aim = Math.atan2(-(e.z - p.z), e.x - p.x);
-      const facing = Math.atan2(-Math.sin(p.heading), Math.cos(p.heading));
+      const facing = p.heading;
       if (Math.abs(angDiff(aim, facing)) < 0.45 || d < 8) {
         if (d < bd) { bd = d; best = e; }
       }
@@ -298,6 +298,9 @@ export function createWorld(seed, colliders) {
 
   function updatePolice(dt) {
     const t = policeTarget();
+    // Cannery tunnels: inside the zone the police lose the trail — they stop
+    // closing in and the heat dies down twice as fast while hidden there.
+    const inTunnel = dist2(t.x, t.z, -120, -64) < 16 * 16;
     // spawn / despawn police cars
     const want = state.wanted > 0 ? Math.min(state.wanted + 1, 6) : 0;
     while (state.policeCars.length < want) {
@@ -313,30 +316,33 @@ export function createWorld(seed, colliders) {
       const d = Math.sqrt(dx * dx + dz * dz) || 1;
       const wantAngle = Math.atan2(-dz, dx);
       pc.angle += clamp(angDiff(wantAngle, pc.angle), -2.4 * dt, 2.4 * dt);
-      const targetSpeed = d > 6 ? 36 : 14;
+      const targetSpeed = inTunnel ? 0 : (d > 6 ? 36 : 14);
       pc.speed += clamp(targetSpeed - pc.speed, -30 * dt, 18 * dt);
       pc.x += Math.cos(pc.angle) * pc.speed * dt;
       pc.z += -Math.sin(pc.angle) * pc.speed * dt;
       const c = collideCircle(pc.x, pc.z, 2);
       pc.x = c.x; pc.z = c.z;
-      // ram damage to player car
+      // ram damage to player car (not while the trail is lost in the tunnels)
       const car = playerCar();
-      if (car && dist2(pc.x, pc.z, car.x, car.z) < 9) {
-        car.damage = Math.min(100, car.damage + 4 * dt);
+      if (car && !inTunnel && dist2(pc.x, pc.z, car.x, car.z) < 9) {
+        car.damage = Math.min(100, car.damage + 2 * dt);
         car.speed *= (1 - 0.5 * dt);
       }
     }
-    // foot police at wanted >= 2
+    // foot police at wanted >= 2 (spawn on a ring 18-30 m out — never on top of the player)
     if (state.wanted >= 2 && state.footPolice.length < 2) {
-      state.footPolice.push({ x: t.x + rng.range(-30, 30), z: t.z + rng.range(-30, 30), speed: 5.2 });
+      const a = rng.range(0, TAU);
+      const rr = rng.range(18, 30);
+      state.footPolice.push({ x: t.x + Math.cos(a) * rr, z: t.z + Math.sin(a) * rr, speed: 5.2 });
     }
     if (state.wanted < 2) state.footPolice = [];
     for (const fp of state.footPolice) {
       const dx = t.x - fp.x; const dz = t.z - fp.z;
       const d = Math.sqrt(dx * dx + dz * dz) || 1;
-      fp.x += (dx / d) * fp.speed * dt;
-      fp.z += (dz / d) * fp.speed * dt;
-      if (d < 1.6 && state.player.carId < 0) {
+      const fpSpeed = inTunnel ? 0 : fp.speed;
+      fp.x += (dx / d) * fpSpeed * dt;
+      fp.z += (dz / d) * fpSpeed * dt;
+      if (!inTunnel && d < 1.6 && state.player.carId < 0) {
         state.busted = true; state.bustedTimer = 2.5;
         state.cash = Math.floor(state.cash * 0.8);
         state.wanted = 0;
@@ -361,11 +367,11 @@ export function createWorld(seed, colliders) {
       state.roadblocks = [{ x: bx, z: bz, angle: Math.atan2(-fz, fx) + Math.PI / 2 }];
     }
     if (state.wanted < 3) state.roadblocks = [];
-    // wanted decay when hidden
+    // wanted decay when hidden (or lost in the cannery tunnels, twice as fast)
     let nearestPolice = Infinity;
     for (const pc of state.policeCars) nearestPolice = Math.min(nearestPolice, Math.sqrt(dist2(pc.x, pc.z, t.x, t.z)));
-    if (state.wanted > 0 && nearestPolice > 45) {
-      state.hiddenTimer += dt;
+    if (state.wanted > 0 && (nearestPolice > 45 || inTunnel)) {
+      state.hiddenTimer += inTunnel ? dt * 2 : dt;
       if (state.hiddenTimer > 18) { state.wanted -= 1; state.hiddenTimer = 0; setMessage('Heat cooling off…', 3); }
     } else {
       state.hiddenTimer = 0;
@@ -478,11 +484,17 @@ export function createWorld(seed, colliders) {
       const c = collideCircle(nx, nz, 2.1);
       car.x = c.x; car.z = c.z;
       if (Math.abs(c.x - nx) > 0.01 || Math.abs(c.z - nz) > 0.01) {
+        // one damage hit per impact, scaled by impact speed, at most one
+        // hit per half second — a car wedged against a wall must not grind
+        // itself to a wreck while stationary
+        if (state.time - (car.lastBump || -10) > 0.5) {
+          car.damage = Math.min(100, car.damage + Math.abs(car.speed) * 0.05);
+          car.lastBump = state.time;
+        }
+        car.touching = true;
         car.speed *= 0.4;
-        // damage scales with impact speed — gentle scraping barely scratches
-        car.damage = Math.min(100, car.damage + Math.abs(car.speed) * 0.03);
         scatterPeds(car.x, car.z, 12);
-      }
+      } else car.touching = false;
       // traffic collision: slow down
       for (const o of state.cars) {
         if (o === car || o.parked) continue;
@@ -579,9 +591,12 @@ export function createWorld(seed, colliders) {
         setMessage('Carjacked! The driver fled — the law saw that.', 4);
         state.stats.carsStolen += 1;
       } else if (!car.owned && !car.jobCar) {
-        addWanted(1);
-        setMessage('Stolen car — keep it moving.', 3);
-        state.stats.carsStolen += 1;
+        if (!car.stolen) {
+          car.stolen = true;
+          addWanted(1);
+          setMessage('Stolen car — keep it moving.', 3);
+          state.stats.carsStolen += 1;
+        }
       }
       car.npc = false; car.traffic = false;
       return;
