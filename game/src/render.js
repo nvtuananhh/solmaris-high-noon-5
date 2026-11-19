@@ -231,6 +231,7 @@ export function createRenderer(canvas, world, audio) {
 
   let camPos = new THREE.Vector3(-100, 8, -120);
   let camLook = new THREE.Vector3(-108, 2, -128);
+  let snap = false;
 
   function syncCarMesh(car) {
     let m = carMeshes.get(car.id);
@@ -391,6 +392,7 @@ export function createRenderer(canvas, world, audio) {
     const tz = car ? car.z : p.z;
     const wantPos = new THREE.Vector3(tx - backX * dist, height + (car ? 0 : p.y), tz - backZ * dist);
     const wantLook = new THREE.Vector3(tx + backX * 6, 1.6, tz + backZ * 6);
+    if (snap) { camPos.copy(wantPos); camLook.copy(wantLook); snap = false; }
     camPos.lerp(wantPos, 0.12);
     camLook.lerp(wantLook, 0.2);
     camera.position.copy(camPos);
@@ -405,8 +407,8 @@ export function createRenderer(canvas, world, audio) {
     setText('hud-district', districtAt(p.x, p.z));
     setText('hud-objective', state.objective || '');
     setText('hud-message', state.messageTimer > 0 ? state.message : '');
-    setWidth('hud-health-fill', `${Math.max(0, state.health)}%`);
-    setText('hud-health-num', `${Math.max(0, Math.round(state.health))}`);
+    setWidth('hud-health-fill', `${Math.max(0, state.player.health)}%`);
+    setText('hud-health-num', `${Math.max(0, Math.round(state.player.health))}`);
     setText('hud-stars', '★'.repeat(state.wanted) + '☆'.repeat(5 - state.wanted));
     const w = WEAPONS[state.weapons.current];
     setText('hud-weapon', w.name);
@@ -437,5 +439,5 @@ export function createRenderer(canvas, world, audio) {
     });
   }
 
-  return { draw, setWheel, resize, colliders, scene, camera, renderer };
+  return { draw, setWheel, resize, colliders, scene, camera, renderer, snapCamera() { snap = true; } };
 }

@@ -85,7 +85,7 @@ export function createWorld(seed, colliders) {
   }
 
   // Owned sedan at the garage + parked cars + traffic
-  addCar(0, -112, -126, 1.6, { owned: true });
+  addCar(0, -112, -126, 0, { owned: true });
   const parkedSpots = [[-40, 16], [-36, 24], [0, 44], [84, -44], [44, 84], [-84, 44], [124, 84], [40, -84], [-124, 84], [8, 124]];
   for (const [px, pz] of parkedSpots) addCar(rng.int(0, 4), px, pz, rng.range(0, TAU), { parked: true });
   for (let i = 0; i < 24; i += 1) {
@@ -470,7 +470,7 @@ export function createWorld(seed, colliders) {
       if (input.sprint() && up.nitro && car.speed > 5) car.speed += 14 * dt;
       car.speed = clamp(car.speed, -12, top);
       const steer = axis.x * (up.brakes ? 1.15 : 1);
-      car.angle -= steer * model.grip * 0.55 * dt * clamp(Math.abs(car.speed) / 10, 0.25, 1) * (car.speed < 0 ? -1 : 1);
+      car.angle -= steer * model.grip * 0.35 * dt * clamp(Math.abs(car.speed) / 10, 0.25, 1) * (car.speed < 0 ? -1 : 1);
       if (actions & 32 /* jump = handbrake */) car.speed *= (1 - 2.2 * dt);
       const nx = car.x + Math.cos(car.angle) * car.speed * dt;
       const nz = car.z - Math.sin(car.angle) * car.speed * dt;

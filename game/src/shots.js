@@ -32,11 +32,18 @@ export function stageShot(name, world, renderer) {
     st.wanted = 4;
     st.time = 210; // dusk, lighthouse beam + streetlights on
     const car = st.cars[0];
-    car.x = -20; car.z = -40; car.angle = 0; car.speed = 26; car.parked = false;
+    car.x = -60; car.z = -40; car.angle = 0; car.speed = 26; car.parked = false;
     st.player.onFoot = false; st.player.carId = car.id;
     st.player.camYaw = 0;
     st.cash = 2450; st.respect = 55;
-    runSteps(world, 4, true, 0);
+    runSteps(world, 2.5, true, 0);
+    // Frame the chase: two police cars closing in ahead, helicopter offset into view.
+    const pc = world.state;
+    if (pc.policeCars.length >= 2) {
+      pc.policeCars[0].x = car.x + 24; pc.policeCars[0].z = car.z - 7; pc.policeCars[0].angle = car.angle; pc.policeCars[0].speed = 30;
+      pc.policeCars[1].x = car.x + 18; pc.policeCars[1].z = car.z + 8; pc.policeCars[1].angle = car.angle; pc.policeCars[1].speed = 30;
+    }
+    pc.heli.x = car.x + 35; pc.heli.z = car.z - 15; pc.heli.alt = 18;
   } else if (name === 'onfoot') {
     // On foot on the Flamingo Mile by the casino, pedestrians and storefronts.
     st.jobIndex = 0; st.stepIndex = 0;
@@ -50,11 +57,11 @@ export function stageShot(name, world, renderer) {
     st.jobIndex = 0; st.stepIndex = 1;
     st.time = 150;
     const car = st.cars[0];
-    car.x = 60; car.z = -160; car.angle = Math.PI; car.speed = 30; car.parked = false;
+    car.x = 80; car.z = -160; car.angle = Math.PI; car.speed = 30; car.parked = false;
     st.player.onFoot = false; st.player.carId = car.id;
     st.player.camYaw = Math.PI;
     st.cash = 650; st.respect = 10;
-    runSteps(world, 3, true, 0);
+    runSteps(world, 1.5, true, 0);
   } else {
     // Mission/combat: the docks ambush (job 8) — SMG out, rivals closing in.
     st.jobIndex = 7; st.stepIndex = 0;
@@ -70,6 +77,8 @@ export function stageShot(name, world, renderer) {
   }
 
   // Paint three times so the smoothed chase camera settles, then signal ready.
+  renderer.snapCamera();
+  world.state.messageTimer = 0;
   let painted = 0;
   function paint() {
     renderer.draw(world.state, 'play');
