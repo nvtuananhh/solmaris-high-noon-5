@@ -3,17 +3,147 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Block Dodger</title>
+<title>Ember Coast — open-world crime</title>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #11141b; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #1a1210; font-family: 'Segoe UI', system-ui, sans-serif; }
   #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-  /* Read aloud, never shown: the status line screen readers announce. */
   #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.7); display: none; }
+  #hud.on { display: block; }
+  .panel { background: rgba(10,10,16,.55); border-radius: 8px; padding: 8px 12px; }
+  #hud-topleft { position: absolute; top: 12px; left: 12px; }
+  #healthbar { width: 200px; height: 14px; background: rgba(0,0,0,.6); border: 1px solid #fff3; border-radius: 7px; overflow: hidden; }
+  #hud-health-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #e83a3a, #ff7a3a); }
+  #hud-health-num { font-size: 12px; }
+  #hud-cash { font-size: 22px; font-weight: 800; color: #7dff9e; }
+  #hud-respect, #hud-coins { font-size: 13px; color: #ffd24a; }
+  #hud-topright { position: absolute; top: 12px; right: 12px; text-align: right; }
+  #hud-stars { font-size: 24px; color: #ffd24a; letter-spacing: 2px; }
+  #hud-clock, #hud-district { font-size: 13px; }
+  #minimap { width: 180px; height: 180px; border-radius: 50%; border: 2px solid rgba(255,255,255,.5); background: rgba(10,20,30,.8); margin-top: 6px; }
+  #hud-objective { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); font-size: 15px; font-weight: 700; text-align: center; max-width: 520px; }
+  #hud-message { position: absolute; bottom: 118px; left: 50%; transform: translateX(-50%); font-size: 15px; text-align: center; max-width: 640px; }
+  #hud-bottomright { position: absolute; right: 14px; bottom: 14px; text-align: right; }
+  #hud-speed { font-size: 28px; font-weight: 800; }
+  #hud-radio { font-size: 13px; color: #ffd24a; }
+  #hud-bottomleft { position: absolute; left: 14px; bottom: 14px; }
+  #hud-weapon { font-size: 17px; font-weight: 700; }
+  #hud-ammo { font-size: 22px; font-weight: 800; color: #ffd24a; }
+  #crosshair { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; display: none; }
+  #crosshair::before, #crosshair::after { content: ''; position: absolute; background: #fff; }
+  #crosshair::before { left: 8px; top: 0; width: 2px; height: 18px; }
+  #crosshair::after { left: 0; top: 8px; width: 18px; height: 2px; }
+  #muzzle { position: absolute; left: 50%; top: 50%; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%; background: radial-gradient(circle, rgba(255,220,120,.9), transparent 70%); opacity: 0; pointer-events: none; }
+  #wheel { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); display: none; gap: 10px; }
+  .wslot { width: 92px; padding: 10px; text-align: center; background: rgba(10,10,16,.7); border: 2px solid #fff3; border-radius: 10px; }
+  .wslot.active { border-color: #ffd24a; background: rgba(80,60,10,.8); }
+  .wslot:not(.owned) { opacity: .45; }
+  .wslot .nm { font-weight: 700; }
+  .wslot .ammo { color: #ffd24a; font-size: 18px; font-weight: 800; }
+  .screen { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: linear-gradient(180deg, rgba(20,8,4,.82), rgba(40,16,4,.88)); color: #fff; z-index: 10; }
+  .screen.on { display: flex; }
+  .card { max-width: 640px; padding: 32px; text-align: center; }
+  .card h1 { font-size: 56px; margin: 0; color: #ffb347; letter-spacing: 4px; text-shadow: 0 4px 24px rgba(255,120,40,.6); }
+  .card h2 { font-weight: 400; color: #ffd9a0; margin-top: 4px; }
+  .card p { line-height: 1.55; color: #f0e6d8; }
+  .card button, .panelbtn { pointer-events: auto; display: block; width: 100%; margin: 8px 0; padding: 12px; font-size: 16px; font-weight: 700; color: #fff; background: #c85a1e; border: 1px solid #ffb347; border-radius: 8px; cursor: pointer; }
+  .card button:hover, .panelbtn:hover { background: #e86a2a; }
+  .card button.secondary { background: #333a44; }
+  .controls { text-align: left; font-size: 13px; columns: 2; column-gap: 28px; }
+  .sidepanel { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 380px; background: rgba(12,12,18,.95); color: #fff; border: 2px solid #ffb347; border-radius: 12px; padding: 20px; display: none; z-index: 11; }
+  .sidepanel.on { display: block; }
+  .sidepanel h3 { margin: 0 0 10px; color: #ffb347; }
+  .sidepanel .row { display: flex; justify-content: space-between; align-items: center; margin: 8px 0; font-size: 14px; }
+  .sidepanel button { pointer-events: auto; padding: 6px 12px; background: #c85a1e; color: #fff; border: 1px solid #ffb347; border-radius: 6px; cursor: pointer; font-weight: 700; }
+  .sidepanel .close { margin-top: 12px; width: 100%; }
+  label.set { display: block; margin: 10px 0; font-size: 14px; }
 </style>
 </head>
 <body>
-<canvas id="game" aria-label="Block Dodger: move the paddle left and right to dodge falling blocks and catch coins"></canvas>
+<canvas id="game" aria-label="Ember Coast: open-world crime game"></canvas>
 <p id="status" role="status" aria-live="polite"></p>
+
+<div id="hud">
+  <div id="hud-topleft" class="panel">
+    <div id="healthbar"><div id="hud-health-fill"></div></div>
+    <div id="hud-health-num">100</div>
+    <div id="hud-cash">$250</div>
+    <div id="hud-respect">Respect 0</div>
+    <div id="hud-coins">Coins 0/25</div>
+  </div>
+  <div id="hud-topright" class="panel">
+    <div id="hud-stars">☆☆☆☆☆</div>
+    <div id="hud-clock">Day 1 — 17:00</div>
+    <div id="hud-district">Ember Coast</div>
+    <canvas id="minimap" width="180" height="180"></canvas>
+  </div>
+  <div id="hud-objective" class="panel"></div>
+  <div id="hud-message" class="panel"></div>
+  <div id="hud-bottomright" class="panel">
+    <div id="hud-speed"></div>
+    <div id="hud-radio"></div>
+  </div>
+  <div id="hud-bottomleft" class="panel">
+    <div id="hud-weapon">Fists</div>
+    <div id="hud-ammo">∞</div>
+  </div>
+  <div id="crosshair"></div>
+  <div id="muzzle"></div>
+  <div id="wheel">
+    <div class="wslot owned" id="wheel-fists"><div class="nm">1 Fists</div><div class="ammo">∞</div></div>
+    <div class="wslot" id="wheel-bat"><div class="nm">2 Bat</div><div class="ammo">∞</div></div>
+    <div class="wslot owned" id="wheel-pistol"><div class="nm">3 Pistol</div><div class="ammo">24</div></div>
+    <div class="wslot" id="wheel-smg"><div class="nm">4 SMG</div><div class="ammo">0</div></div>
+  </div>
+</div>
+
+<div id="screen-title" class="screen on">
+  <div class="card">
+    <h1>EMBER COAST</h1>
+    <h2>Sun-soaked open-world crime — 9 story jobs, 5-star police, weapon wheel, garage, radio</h2>
+    <p>Cleo Vane, former getaway driver, runs a food truck on the Ember Coast. Her uncle Milo's
+    marina garage is drowning in debt — and "Papa" Aldo Ferrante has one last chain of jobs for her.
+    Nine jobs. One casino vault. A boat escape past the lighthouse.</p>
+    <button id="btn-new">New Game</button>
+    <button id="btn-continue" class="secondary">Continue</button>
+    <div class="controls">
+      <p>WASD move / drive &nbsp;·&nbsp; Mouse orbit &nbsp;·&nbsp; Shift sprint / nitro<br>
+      Space jump / handbrake &nbsp;·&nbsp; E interact / enter car<br>
+      F melee &nbsp;·&nbsp; Right-click / R fire &nbsp;·&nbsp; Q weapon wheel, 1–4 switch<br>
+      H honk &nbsp;·&nbsp; R radio (while driving) &nbsp;·&nbsp; C crouch &nbsp;·&nbsp; Esc pause</p>
+      <p>Steal cars, lose the heat, do taxi fares and collect 25 ember coins.
+      Respect unlocks the later jobs. Save at the safehouse (Palm Court) or from pause.
+      Garage: repair, repaint, engine / brakes / nitro. Shops sell health and ammo.</p>
+    </div>
+  </div>
+</div>
+
+<div id="screen-pause" class="screen">
+  <div class="card">
+    <h1 style="font-size:36px">PAUSED</h1>
+    <button id="btn-resume">Resume</button>
+    <button id="btn-save" class="secondary">Save game</button>
+    <button id="btn-load" class="secondary">Load game</button>
+    <button id="btn-payoff" class="secondary">Pay off wanted heat ($500 / star)</button>
+    <label class="set">Volume <input id="set-vol" type="range" min="0" max="100" value="60"></label>
+    <label class="set">Mouse sensitivity <input id="set-sens" type="range" min="30" max="200" value="100"></label>
+    <button id="btn-quit" class="secondary">Quit to title</button>
+  </div>
+</div>
+
+<div id="panel-garage" class="sidepanel">
+  <h3>Milo's Garage</h3>
+  <div id="garage-rows"></div>
+  <button class="close" id="garage-close">Close (Esc)</button>
+</div>
+
+<div id="panel-shop" class="sidepanel">
+  <h3>Corner Store</h3>
+  <div id="shop-rows"></div>
+  <button class="close" id="shop-close">Close (Esc)</button>
+</div>
+
+<script src="./vendor/three.min.js"></script>
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>

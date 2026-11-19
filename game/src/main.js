@@ -1,132 +1,192 @@
-// Boot and the one loop: input is read every frame, the world advances in fixed 1/60 s steps
-// (several in a slow frame, none in a fast one), and the renderer paints what is there. The game
-// moves between four screens: title, play, paused and game over.
-//
-// ?seed=N fixes the falling pattern. ?shot=start|play|end (with &seed=N) stages that scene
-// instead of running the loop, paints it twice and sets window.__shotReady for a screenshot.
-import { BEST_KEY, LIVES, STEP } from './config.js';
-import { createRandom } from './random.js';
-import { createWorld, EVENT_HIT, EVENT_OVER } from './world.js';
-import { ACTION_CONFIRM, ACTION_PAUSE, createInput } from './input.js';
-import { createRenderer, SCREEN_OVER, SCREEN_PAUSED, SCREEN_PLAY, SCREEN_TITLE } from './render.js';
+// Ember Coast — boot, fixed-step loop, screens, panels, shot mode.
+// ?seed=N fixes the world. ?shot=cover|onfoot|driving|mission stages that scene.
+import { STEP, UPGRADES, SHOP_ITEMS, LANDMARKS } from './config.js';
+import { createWorld } from './world.js';
+import { createInput, ACTION_CONFIRM, ACTION_PAUSE, ACTION_INTERACT } from './input.js';
+import { createAudio } from './audio.js';
+import { createRenderer } from './render.js';
 import { stageShot } from './shots.js';
 
-/** The longest frame the loop catches up on; a longer stall (a hidden tab) is dropped, not replayed. */
 const MAX_FRAME = 0.25;
-
 const params = new URLSearchParams(window.location.search);
 const shot = params.get('shot');
 const seedParam = Number.parseInt(params.get('seed') ?? '', 10);
-const seed = Number.isInteger(seedParam) ? seedParam : Math.floor(Math.random() * 4294967296);
+const seed = Number.isInteger(seedParam) ? seedParam : 1;
 
 const canvas = document.getElementById('game');
 const status = document.getElementById('status');
-const world = createWorld(createRandom(seed));
-const renderer = createRenderer(canvas);
+const colliderBox = [];
+const world = createWorld(seed, colliderBox);
+const input = createInput(canvas);
+input.sens = 1;
+const audio = createAudio();
+const renderer = createRenderer(canvas, world, audio);
+colliderBox.push(...renderer.colliders);
 
-function readBest() {
-  try {
-    return Number.parseInt(window.localStorage.getItem(BEST_KEY) ?? '0', 10) || 0;
-  } catch {
-    return 0;
-  }
+const $ = (id) => document.getElementById(id);
+function show(id, on) { const el = $(id); if (el) el.classList.toggle('on', on); }
+function announce(msg) { status.textContent = msg; }
+
+window.__ember = { world, state: world.state };
+
+let screen = 'title'; // title | play | pause | panel
+let wheelHeld = false;
+let panelKind = null;
+
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'KeyQ') wheelHeld = true;
+  audio.unlock();
+});
+window.addEventListener('keyup', (e) => {
+  if (e.code === 'KeyQ') wheelHeld = false;
+});
+window.addEventListener('pointerdown', () => audio.unlock());
+
+function openPanel(kind) {
+  panelKind = kind;
+  screen = 'panel';
+  show('panel-garage', kind === 'garage');
+  show('panel-shop', kind === 'shop');
+  if (kind === 'garage') renderGarage();
+  if (kind === 'shop') renderShop();
+}
+function closePanel() {
+  panelKind = null;
+  screen = 'play';
+  show('panel-garage', false);
+  show('panel-shop', false);
+}
+function renderGarage() {
+  const rows = $('garage-rows');
+  const car = world.playerCar() || world.state.cars.find((c) => c.owned);
+  rows.innerHTML = UPGRADES.map((u) => {
+    const owned = car && car.upgrades[u.id];
+    return `<div class="row"><span>${u.name} — ${u.desc}</span><span>$${u.cost} ${owned ? '(installed)' : ''}</span><button data-up="${u.id}">Buy</button></div>`;
+  }).join('') + `<div class="row"><span>Car damage</span><span>${car ? Math.round(car.damage) + '%' : '—'}</span></div>`;
+  rows.querySelectorAll('[data-up]').forEach((b) => {
+    b.addEventListener('click', () => {
+      const msg = world.buyUpgrade(b.dataset.up);
+      world.setMessage(msg, 4);
+      renderGarage();
+    });
+  });
+}
+function renderShop() {
+  const rows = $('shop-rows');
+  rows.innerHTML = SHOP_ITEMS.map((u) => (
+    `<div class="row"><span>${u.name} — ${u.desc}</span><span>$${u.cost}</span><button data-shop="${u.id}">Buy</button></div>`
+  )).join('');
+  rows.querySelectorAll('[data-shop]').forEach((b) => {
+    b.addEventListener('click', () => {
+      const msg = world.buyShop(b.dataset.shop);
+      world.setMessage(msg, 4);
+      renderShop();
+    });
+  });
 }
 
-function saveBest(value) {
-  try {
-    window.localStorage.setItem(BEST_KEY, String(value));
-  } catch {
-    // Storage can be off (private windows): the best score then lasts this visit only.
+function startGame(fresh) {
+  if (fresh) world.reset();
+  screen = 'play';
+  show('screen-title', false);
+  show('screen-pause', false);
+  show('hud', true);
+  announce('Playing Ember Coast. Follow the objective at the top of the screen.');
+}
+
+$('btn-new').addEventListener('click', () => startGame(true));
+$('btn-continue').addEventListener('click', () => {
+  if (world.load()) { startGame(false); world.setMessage('Save loaded. Welcome back, Cleo.', 5); }
+  else { startGame(true); world.setMessage('No save found — starting a new game.', 4); }
+});
+$('btn-resume').addEventListener('click', () => { screen = 'play'; show('screen-pause', false); });
+$('btn-save').addEventListener('click', () => world.setMessage(world.save() ? 'Game saved.' : 'Save failed.', 4));
+$('btn-load').addEventListener('click', () => world.setMessage(world.load() ? 'Game loaded.' : 'No save found.', 4));
+$('btn-payoff').addEventListener('click', () => world.setMessage(world.payoffWanted(), 5));
+$('btn-quit').addEventListener('click', () => { screen = 'title'; show('screen-pause', false); show('screen-title', true); show('hud', false); });
+$('garage-close').addEventListener('click', closePanel);
+$('shop-close').addEventListener('click', closePanel);
+$('set-vol').addEventListener('input', (e) => audio.setVolume(Number(e.target.value) / 100));
+$('set-sens').addEventListener('input', (e) => { input.sens = Number(e.target.value) / 100; });
+
+function nearestCarDist(x, z, maxD) {
+  let bd = maxD * maxD;
+  for (const c of world.state.cars) {
+    if (c.traffic) continue;
+    const dx = c.x - x; const dz = c.z - z;
+    if (dx * dx + dz * dz < bd) return true;
   }
+  return false;
 }
 
 function runShot(name) {
-  const scene = stageShot(name, world);
-  let painted = 0;
-  function paint() {
-    renderer.draw(world.state, scene.screen, scene.best);
-    painted += 1;
-    if (painted < 2) requestAnimationFrame(paint);
-    else window.__shotReady = true;
-  }
-  requestAnimationFrame(paint);
+  show('screen-title', false);
+  show('hud', true);
+  stageShot(name, world, renderer);
 }
 
 function runGame() {
-  const input = createInput(canvas);
-  let screen = SCREEN_TITLE;
-  let best = readBest();
   let accumulator = 0;
   let last = performance.now();
-
-  // Screen readers (and anyone watching the page's text) hear the screen changes and each hit.
-  function announce(message) {
-    status.textContent = message;
-  }
-
-  function startGame() {
-    world.reset();
-    accumulator = 0;
-    screen = SCREEN_PLAY;
-    announce(`Playing. ${LIVES} lives.`);
-  }
-
-  function endGame() {
-    screen = SCREEN_OVER;
-    if (world.state.score > best) {
-      best = world.state.score;
-      saveBest(best);
-    }
-    announce(`Game over. Score ${world.state.score}. Best ${best}.`);
-  }
-
-  function handleActions() {
-    const actions = input.takeActions();
-    if (actions & ACTION_CONFIRM && (screen === SCREEN_TITLE || screen === SCREEN_OVER)) startGame();
-    else if (actions & ACTION_PAUSE && screen === SCREEN_PLAY) {
-      screen = SCREEN_PAUSED;
-      announce('Paused.');
-    } else if (actions & (ACTION_PAUSE | ACTION_CONFIRM) && screen === SCREEN_PAUSED) {
-      screen = SCREEN_PLAY;
-      announce('Playing.');
-    }
-  }
-
-  function step() {
-    if (screen === SCREEN_TITLE) {
-      world.step(STEP, 0, true);
-      return;
-    }
-    const events = world.step(STEP, input.direction(), false);
-    if (events & EVENT_OVER) endGame();
-    else if (events & EVENT_HIT) announce(world.state.lives === 1 ? 'Hit. 1 life left.' : `Hit. ${world.state.lives} lives left.`);
-  }
 
   function frame(now) {
     requestAnimationFrame(frame);
     accumulator += Math.min((now - last) / 1000, MAX_FRAME);
     last = now;
-    handleActions();
-    if (screen === SCREEN_TITLE || screen === SCREEN_PLAY) {
-      while (accumulator >= STEP && (screen === SCREEN_TITLE || screen === SCREEN_PLAY)) {
-        step();
-        accumulator -= STEP;
-      }
-    } else {
-      accumulator = 0;
+    const num = input.numberPressed();
+    const actions = input.takeActions();
+
+    if (screen === 'panel') {
+      if (actions & ACTION_PAUSE) closePanel();
+      renderer.draw(world.state, screen);
+      return;
     }
-    renderer.draw(world.state, screen, best);
+    if (actions & ACTION_PAUSE) {
+      if (screen === 'play') { screen = 'pause'; show('screen-pause', true); announce('Paused.'); }
+      else if (screen === 'pause') { screen = 'play'; show('screen-pause', false); announce('Playing.'); }
+    }
+    if (screen === 'title') {
+      if (actions & ACTION_CONFIRM) startGame(world.hasSave() ? false : true);
+      renderer.draw(world.state, screen);
+      return;
+    }
+    if (screen !== 'play') { renderer.draw(world.state, screen); return; }
+
+    // Intercept E near garage / shop / safehouse (on foot, no car close by)
+    let stepActions = actions;
+    if ((actions & ACTION_INTERACT) && world.state.player.onFoot) {
+      const p = world.state.player;
+      const nearCar = nearestCarDist(p.x, p.z, 4.5);
+      if (!nearCar && world.state.nearGarage) { openPanel('garage'); stepActions = actions & ~ACTION_INTERACT; }
+      else if (!nearCar && world.state.nearShop) { openPanel('shop'); stepActions = actions & ~ACTION_INTERACT; }
+      else if (!nearCar && world.state.nearSafe) {
+        world.setMessage(world.save() ? 'Game saved at the safehouse.' : 'Save failed.', 4);
+        stepActions = actions & ~ACTION_INTERACT;
+      }
+    }
+
+    while (accumulator >= STEP) {
+      world.step(STEP, input, stepActions, num);
+      stepActions = 0;
+      accumulator -= STEP;
+    }
+    // wheel (Q held) — show overlay; number keys switch directly
+    renderer.setWheel(wheelHeld, world.state.weapons);
+    // audio cues from the sim
+    const car = world.playerCar();
+    audio.setEngine(car ? Math.min(1, Math.abs(car.speed) / 40) : 0, !!car);
+    if (world.state.wanted > 0) audio.sirenTick(true);
+    audio.radioTick(!!car);
+    if (world.state.events.shot) audio.gunshot();
+    if (world.state.events.honk) audio.honk();
+    if (world.state.events.pickup) audio.pickup();
+    renderer.draw(world.state, screen);
   }
 
-  // Leaving the tab pauses a running game rather than letting blocks fall unseen.
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden && screen === SCREEN_PLAY) {
-      screen = SCREEN_PAUSED;
-      announce('Paused.');
-    }
+    if (document.hidden && screen === 'play') { screen = 'pause'; show('screen-pause', true); }
   });
-
-  announce('Block Dodger. Press Space or click to start.');
+  announce('Ember Coast. Press Enter or click New Game to start.');
   requestAnimationFrame(frame);
 }
 
