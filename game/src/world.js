@@ -85,7 +85,7 @@ export function createWorld(seed, colliders) {
   }
 
   // Owned sedan at the garage + parked cars + traffic
-  addCar(0, -112, -132, 1.6, { owned: true });
+  addCar(0, -112, -126, 1.6, { owned: true });
   const parkedSpots = [[-40, 16], [-36, 24], [0, 44], [84, -44], [44, 84], [-84, 44], [124, 84], [40, -84], [-124, 84], [8, 124]];
   for (const [px, pz] of parkedSpots) addCar(rng.int(0, 4), px, pz, rng.range(0, TAU), { parked: true });
   for (let i = 0; i < 24; i += 1) {
@@ -130,7 +130,7 @@ export function createWorld(seed, colliders) {
   }
   state.pickups.push({ kind: 'health', x: -78, z: 76, taken: false });
   state.pickups.push({ kind: 'health', x: 78, z: -36, taken: false });
-  state.pickups.push({ kind: 'ammo', x: -118, z: -136, taken: false });
+  state.pickups.push({ kind: 'ammo', x: -112, z: -124, taken: false });
 
   // ---- collision: circle vs building AABB ----
   function collideCircle(x, z, r) {
@@ -470,7 +470,7 @@ export function createWorld(seed, colliders) {
       if (input.sprint() && up.nitro && car.speed > 5) car.speed += 14 * dt;
       car.speed = clamp(car.speed, -12, top);
       const steer = axis.x * (up.brakes ? 1.15 : 1);
-      car.angle += steer * model.grip * 0.55 * dt * clamp(Math.abs(car.speed) / 10, 0.25, 1) * (car.speed < 0 ? -1 : 1);
+      car.angle -= steer * model.grip * 0.55 * dt * clamp(Math.abs(car.speed) / 10, 0.25, 1) * (car.speed < 0 ? -1 : 1);
       if (actions & 32 /* jump = handbrake */) car.speed *= (1 - 2.2 * dt);
       const nx = car.x + Math.cos(car.angle) * car.speed * dt;
       const nz = car.z - Math.sin(car.angle) * car.speed * dt;
@@ -479,7 +479,8 @@ export function createWorld(seed, colliders) {
       car.x = c.x; car.z = c.z;
       if (Math.abs(c.x - nx) > 0.01 || Math.abs(c.z - nz) > 0.01) {
         car.speed *= 0.4;
-        car.damage = Math.min(100, car.damage + 2);
+        // damage scales with impact speed — gentle scraping barely scratches
+        car.damage = Math.min(100, car.damage + Math.abs(car.speed) * 0.03);
         scatterPeds(car.x, car.z, 12);
       }
       // traffic collision: slow down
@@ -566,7 +567,7 @@ export function createWorld(seed, colliders) {
       // already carrying a fare — handled by marker
     }
     // enter nearest car
-    const car = nearestCar(p.x, p.z, 4.5);
+    const car = nearestCar(p.x, p.z, 5.5);
     if (car) {
       p.onFoot = false;
       p.carId = car.id;

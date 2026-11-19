@@ -156,7 +156,7 @@ function runGame() {
     let stepActions = actions;
     if ((actions & ACTION_INTERACT) && world.state.player.onFoot) {
       const p = world.state.player;
-      const nearCar = nearestCarDist(p.x, p.z, 4.5);
+      const nearCar = nearestCarDist(p.x, p.z, 5.5);
       if (!nearCar && world.state.nearGarage) { openPanel('garage'); stepActions = actions & ~ACTION_INTERACT; }
       else if (!nearCar && world.state.nearShop) { openPanel('shop'); stepActions = actions & ~ACTION_INTERACT; }
       else if (!nearCar && world.state.nearSafe) {

@@ -41,7 +41,7 @@ export const JOBS = [
     id: 1, title: 'First Light', pay: 400, respect: 10,
     brief: 'Meet Milo at the garage, learn the ropes, drive the sedan down to the marina.',
     steps: [
-      { kind: 'talk', x: -120, z: -140, text: 'Meet Milo at the garage' },
+      { kind: 'talk', x: -120, z: -128, text: 'Meet Milo at the garage' },
       { kind: 'driveTo', x: -40, z: -150, text: 'Drive the sedan to Ember Marina' },
     ],
   },
@@ -57,24 +57,24 @@ export const JOBS = [
     id: 3, title: 'The Drop', pay: 900, respect: 14,
     brief: 'Pick up the package under the pier, then run the foot chase through Palm Court and escape by car.',
     steps: [
-      { kind: 'goTo', x: 0, z: -185, text: 'Pick up the package under the pier' },
+      { kind: 'goTo', x: 0, z: -158, text: 'Pick up the package under the pier' },
       { kind: 'goTo', x: -40, z: 40, text: 'Foot chase — reach Palm Court on foot' },
-      { kind: 'escape', x: -120, z: -140, text: 'Escape by car — reach the garage with no wanted stars' },
+      { kind: 'escape', x: -120, z: -128, text: 'Escape by car — reach the garage with no wanted stars' },
     ],
   },
   {
     id: 4, title: 'Clean Plates', pay: 1100, respect: 16,
     brief: 'Swap plates at the garage while police patrol. Stay out of sight — 2-star risk.',
     steps: [
-      { kind: 'goTo', x: -120, z: -140, text: 'Sneak to the garage on foot — avoid police line of sight' },
-      { kind: 'survive', seconds: 20, x: -120, z: -140, text: 'Swap the plates — hold out 20 seconds' },
+      { kind: 'goTo', x: -120, z: -128, text: 'Sneak to the garage on foot — avoid police line of sight' },
+      { kind: 'survive', seconds: 20, x: -120, z: -128, text: 'Swap the plates — hold out 20 seconds' },
     ],
   },
   {
     id: 5, title: 'Flamingo Run', pay: 1500, respect: 20,
     brief: 'Drive the getaway car down the Flamingo Mile in a 3-star chase. Dodge the roadblocks.',
     steps: [
-      { kind: 'driveTo', x: 80, z: -40, text: 'Reach the Flamingo Casino in the getaway car' },
+      { kind: 'driveTo', x: 80, z: -24, text: 'Reach the Flamingo Casino in the getaway car' },
       { kind: 'driveTo', x: 40, z: 120, text: 'Break through to Copperton — roadblocks ahead' },
     ],
   },
@@ -106,8 +106,8 @@ export const JOBS = [
     id: 9, title: 'The Last Tide', pay: 8000, respect: 50, respectNeed: 90,
     brief: 'The finale: 5-star casino vault heist, helicopter and roadblocks, boat escape past the lighthouse.',
     steps: [
-      { kind: 'goTo', x: 80, z: -40, text: 'Hit the Flamingo Casino vault' },
-      { kind: 'combat', x: 80, z: -40, kills: 4, text: 'Hold the vault room — take out 4 guards' },
+      { kind: 'goTo', x: 80, z: -24, text: 'Hit the Flamingo Casino vault' },
+      { kind: 'combat', x: 80, z: -24, kills: 4, text: 'Hold the vault room — take out 4 guards' },
       { kind: 'boat', x: -150, z: -195, text: 'Boat escape — reach the lighthouse point' },
     ],
   },
